@@ -1,4 +1,5 @@
 struct stat;
+struct sysinfo; //FPO LAB2
 
 // system calls
 int fork(void);
@@ -22,6 +23,8 @@ int getpid(void);
 char* sbrk(int);
 int sleep(int);
 int uptime(void);
+int trace(int);  //FPO LAB2
+int sysinfo(struct sysinfo *); //FPO LAB2
 
 // ulib.c
 int stat(const char*, struct stat*);
