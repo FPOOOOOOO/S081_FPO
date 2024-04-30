@@ -94,30 +94,52 @@ sys_uptime(void)
   return xticks;
 }
 
+// uint64
+// sys_sigreturn(void) //FPO LAB4
+// {
+//   struct proc* proc = myproc();
+//   // re-store trapframe so that it can return to the interrupt code before.
+//   *proc->trapframe = proc->saved_trapframe;
+//   proc->have_return = 1; // true
+//   return proc->trapframe->a0;
+// }
+
+// uint64
+// sys_sigalarm(void) //FPO LAB4
+// {
+//   int ticks;
+//   uint64 handler_va;
+
+//   argint(0, &ticks);
+//   argaddr(1, &handler_va);
+//   struct proc* proc = myproc();
+//   proc->alarm_interval = ticks;
+//   proc->handler_va = handler_va;
+//   proc->have_return = 1; // true
+//   return 0;
+// }
+
 uint64
-sys_sigalarm(void){  //FPO LAB4
-  int tick;
-  uint64 handler_va;
-  argint(0,&tick);
-  argaddr(1,&handler_va);
-  struct proc* p = myproc();
-  p->alarm_interval = tick;
-  p->handler_va = handler_va;
-  p->saved_trapframe = 0;
-  acquire(&tickslock);
-  p->passed_ticks = ticks;
-  release(&tickslock);
-  p->have_return = 1;
-  return 0;
+sys_sigreturn(void) //FPO LAB4
+{
+  struct proc* proc = myproc();
+  // re-store trapframe so that it can return to the interrupt code before.
+  *proc->trapframe = proc->saved_trapframe;
+  proc->have_return = 1; // true
+  return proc->trapframe->a0;
 }
 
 uint64
-sys_sigreturn(void){  //FPO LAB4
-  struct proc* p = myproc();
-  if(p->saved_trapframe != 0){
-    *(p->trapframe) = *(p->saved_trapframe);
-    kfree(p->saved_trapframe);
-    p->saved_trapframe = 0;
-  }
+sys_sigalarm(void) //FPO LAB4
+{
+  int ticks;
+  uint64 handler_va;
+
+  argint(0, &ticks);
+  argaddr(1, &handler_va);
+  struct proc* proc = myproc();
+  proc->alarm_interval = ticks;
+  proc->handler_va = handler_va;
+  proc->have_return = 1; // true
   return 0;
 }

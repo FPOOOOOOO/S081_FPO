@@ -163,13 +163,13 @@ freeproc(struct proc *p)
     kfree((void *)p->trapframe);
   p->trapframe = 0;
 
-  if (p->saved_trapframe)  //FPO LAB4
-    kfree((void *)p->saved_trapframe);
-  p->saved_trapframe = 0;
-  p->alarm_interval = 0;
-  p->handler_va = 0;
-  p->passed_ticks = 0;
-  p->have_return = 0;
+  // if (p->saved_trapframe)  //FPO LAB4
+  //   kfree((void *)p->saved_trapframe);
+  // p->saved_trapframe = 0;
+  // p->alarm_interval = 0;
+  // p->handler_va = 0;
+  // p->passed_ticks = 0;
+  // p->have_return = 0;
 
   if (p->pagetable)
     proc_freepagetable(p->pagetable, p->sz);

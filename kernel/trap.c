@@ -79,30 +79,45 @@ void usertrap(void)
     exit(-1);
 
   // give up the CPU if this is a timer interrupt.
-  if (which_dev == 2)
-  {
-    if (p->alarm_interval == 0)
-    {
-    }
-    else if (ticks - p->passed_ticks >= p->alarm_interval)
-    {
-      p->passed_ticks = ticks;
-      if (p->saved_trapframe == 0)
-      {
-        p->saved_trapframe = (struct trapframe *)kalloc();
-        memmove(p->saved_trapframe, p->trapframe, PGSIZE);
-        p->trapframe->epc = p->handler_va;
+  // if (which_dev == 2)                 //FPO LAB4
+  // {
+  //   if (p->alarm_interval == 0)
+  //   {
+  //   }
+  //   else if (ticks - p->passed_ticks >= p->alarm_interval)
+  //   {
+  //     p->passed_ticks = ticks;
+  //     if (p->saved_trapframe == 0)
+  //     {
+  //       p->saved_trapframe = (struct trapframe *)kalloc();
+  //       memmove(p->saved_trapframe, p->trapframe, PGSIZE);
+  //       p->trapframe->epc = p->handler_va;
+  //     }
+  //     else
+  //     {
+  //     }
+  //   }
+  //   else
+  //   {
+  //     yield();
+  //   }
+  // }
+  if(which_dev == 2) {  //FPO LAB4
+    struct proc *proc = myproc();
+    // if proc->alarm_interval is not zero
+    // and alarm handler is return.
+    if (proc->alarm_interval && proc->have_return) {
+      if (++proc->passed_ticks == 2) {
+        proc->saved_trapframe = *p->trapframe;
+        // it will make cpu jmp to the handler function
+        proc->trapframe->epc = proc->handler_va;
+        proc->passed_ticks = 0;
+        // Prevent re-entrant calls to the handler
+        proc->have_return = 0;
       }
-      else
-      {
-      }
     }
-    else
-    {
-      yield();
-    }
+    yield();
   }
-
   usertrapret();
 }
 
