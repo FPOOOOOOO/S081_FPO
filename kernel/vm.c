@@ -308,7 +308,6 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
   pte_t *pte;
   uint64 pa, i;
   uint flags;
-  char *mem;
 
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walk(old, i, 0)) == 0)
@@ -317,13 +316,17 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
       panic("uvmcopy: page not present");
     pa = PTE2PA(*pte);
     flags = PTE_FLAGS(*pte);
-    if((mem = kalloc()) == 0)
-      goto err;
-    memmove(mem, (char*)pa, PGSIZE);
-    if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
-      kfree(mem);
-      goto err;
+    if((*pte) & PTE_W){  //FPO LAB5 // PAY ATTENTION!!!
+    // 只有父进程内存页是可写的，才会将子进程和父进程都设置为COW和只读的；否则，都是只读的，但是不标记为COW，因为本来就是只读的，不会进行写入
+    // 如果不这样做，父进程内存只读的时候，标记为COW，那么经过缺页中断，程序就可以写入数据，于原本的不符合
+   
+      flags = (flags | PTE_COW) & (~PTE_W);
+      *pte = (*pte & ~PTE_W) | PTE_COW;
     }
+    if(mappages(new, i, PGSIZE, pa, flags) != 0){   //FPO LAB5
+      goto err;
+    } 
+    adjustref(pa,1);
   }
   return 0;
 
@@ -355,7 +358,23 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
-    pa0 = walkaddr(pagetable, va0);
+    if(va0 >= MAXVA){  //FPO LAB5
+      printf("copyout: va exceeds MAXVA\n");
+      return -1;
+    }
+    pte_t *pte = walk(pagetable, va0, 0);
+    if(pte == 0 || (*pte & PTE_U) == 0 || (*pte & PTE_V) == 0){
+      printf("copyout: pte invalid\n");
+      return -1;
+    }
+    if((*pte & PTE_W) == 0){
+      if(cowalloc(pagetable, va0) < 0){
+        printf("copyout: cowalloc failed\n");
+        return -1;
+      }
+    }
+    pa0 = PTE2PA(*pte);
+
     if(pa0 == 0)
       return -1;
     n = PGSIZE - (dstva - va0);
@@ -436,4 +455,34 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   } else {
     return -1;
   }
+}
+
+int //FPO LAB5
+cowalloc(pagetable_t pagetable, uint64 va) {
+  if (va >= MAXVA) {
+    printf("cowalloc: exceeds MAXVA\n");
+    return -1;
+  }
+
+  pte_t* pte = walk(pagetable, va, 0); // should refer to a shared PA
+  if (pte == 0) {
+    panic("cowalloc: pte not exists");
+  }
+  if ((*pte & PTE_V) == 0 || (*pte & PTE_U) == 0) {
+    panic("cowalloc: pte permission err");
+  }
+  if((*pte & PTE_COW) == 0 && (*pte & PTE_W) == 0) {  //这里不加过不了 textwrite
+    printf("cowalloc: already a only read page\n");
+    return -1;
+  }
+  uint64 pa_new = (uint64)kalloc();
+  if (pa_new == 0) {
+    printf("cowalloc: kalloc fails\n");
+    return -1;
+  }
+  uint64 pa_old = PTE2PA(*pte);
+  memmove((void *)pa_new, (const void *)pa_old, PGSIZE);
+  kfree((void *)pa_old); // decrement ref count by 1
+  *pte = PA2PTE(pa_new) | PTE_FLAGS(*pte) | PTE_W;
+  return 0;
 }
