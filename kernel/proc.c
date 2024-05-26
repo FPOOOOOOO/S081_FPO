@@ -5,6 +5,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "fcntl.h" //FPO LAB10
 
 struct cpu cpus[NCPU];
 
@@ -145,6 +146,18 @@ found:
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
+
+    // Clear the VMA array FPO LAB10
+  for (int i = 0; i < NVMA; i++) {
+    p->vmas[i].valid  = 0;
+    p->vmas[i].addr   = 0;
+    p->vmas[i].length = 0;
+    p->vmas[i].prot   = 0;
+    p->vmas[i].flags  = 0;
+    p->vmas[i].fd     = 0;
+    p->vmas[i].offset = 0;
+    p->vmas[i].f      = 0;
+  }
 
   return p;
 }
@@ -312,6 +325,15 @@ fork(void)
 
   pid = np->pid;
 
+  for (int i = 0; i < NVMA; i++) { //FPO LAB10
+    np->vmas[i].valid = 0;
+    if (p->vmas[i].valid) {
+      memmove(&np->vmas[i], &p->vmas[i], sizeof(struct vma));
+      filedup(p->vmas[i].f);
+    }
+  }
+
+
   release(&np->lock);
 
   acquire(&wait_lock);
@@ -359,6 +381,19 @@ exit(int status)
       p->ofile[fd] = 0;
     }
   }
+
+ // unmap any mmapped region FPO LAB10
+  for (int i = 0; i < NVMA; i++) {
+    if (p->vmas[i].valid) {
+      if (p->vmas[i].flags & MAP_SHARED) {
+        filewrite(p->vmas[i].f, p->vmas[i].addr, p->vmas[i].length);
+      }
+      fileclose(p->vmas[i].f);
+      uvmunmap(p->pagetable, p->vmas[i].addr, p->vmas[i].length / PGSIZE, 1);
+      p->vmas[i].valid = 0;
+    }
+  }
+
 
   begin_op();
   iput(p->cwd);
